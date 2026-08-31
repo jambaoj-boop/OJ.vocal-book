@@ -151,7 +151,8 @@
       t.textContent = msg;
       t.classList.add('show');
       clearTimeout(showToast._timer);
-      showToast._timer = setTimeout(() => t.classList.remove('show'), 1500);
+      const duration = Math.max(1500, Math.min(msg.length * 80, 5000));
+      showToast._timer = setTimeout(() => t.classList.remove('show'), duration);
     }
 
     // 테마 적용
@@ -295,7 +296,13 @@
         "img": { "max-width": "100%", "height": "auto" },
         "table": { "border-collapse": "collapse", "table-layout": "auto" },
         "td, th": { "word-break": "break-word", "overflow-wrap": "break-word", "white-space": "normal !important" },
-        ".table-scroll-wrap": { "overflow-x": "auto", "-webkit-overflow-scrolling": "touch", "max-width": "100%" }
+        ".table-scroll-wrap": {
+          "overflow": "auto",
+          "max-height": "68vh",
+          "-webkit-overflow-scrolling": "touch",
+          "max-width": "100%",
+          "border": "1px solid rgba(0,0,0,0.08)"
+        }
       });
 
       contents.document.addEventListener('contextmenu', e => e.preventDefault());
@@ -409,17 +416,30 @@
 
     // 목차 이동 (실패 시 폴백 + 사용자 피드백)
     function goToChapter(href) {
-      const attempt = (target) => rendition.display(target);
-      attempt(href).catch(() => {
-        // 일부 epub.js 버전/북 구조에서 canonical 경로 보정이 필요한 경우의 폴백
-        let canonical = href;
-        try { if (typeof book.canonical === 'function') canonical = book.canonical(href); } catch (e) { /* ignore */ }
-        if (canonical !== href) {
-          attempt(canonical).catch(() => showToast('해당 챕터로 이동하지 못했습니다'));
-        } else {
-          showToast('해당 챕터로 이동하지 못했습니다');
+      const candidates = [href];
+      const noFragment = href.split('#')[0];
+      if (noFragment !== href) candidates.push(noFragment);
+      try {
+        if (typeof book.canonical === 'function') {
+          const canon = book.canonical(href);
+          if (canon && !candidates.includes(canon)) candidates.push(canon);
         }
-      });
+      } catch (e) { /* ignore */ }
+      try {
+        const decoded = decodeURIComponent(href);
+        if (!candidates.includes(decoded)) candidates.push(decoded);
+      } catch (e) { /* ignore */ }
+
+      let i = 0;
+      function tryNext() {
+        if (i >= candidates.length) {
+          showToast(`이동 실패: ${href}`);
+          return;
+        }
+        const target = candidates[i++];
+        rendition.display(target).catch(tryNext);
+      }
+      tryNext();
       tocModal.style.display = 'none';
     }
 
