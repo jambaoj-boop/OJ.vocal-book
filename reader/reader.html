@@ -85,6 +85,7 @@
       <button class="header-btn" id="btn-theme" aria-label="테마 전환">☀︎</button>
       <button class="header-btn" id="btn-font-down" aria-label="글자 작게">가-</button>
       <button class="header-btn" id="btn-font-up" aria-label="글자 크게">가+</button>
+      <button class="header-btn" id="btn-fullscreen" aria-label="전체화면">⛶</button>
       <button class="header-btn" id="btn-toc" aria-label="목차 열기">☰</button>
     </div>
   </header>
@@ -173,6 +174,31 @@
       applyTheme(THEME_ORDER[idx]);
     });
     applyTheme(currentTheme);
+
+    // 전체화면 토글
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    function isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+    function toggleFullscreen() {
+      const el = document.documentElement;
+      if (!isFullscreen()) {
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari
+        else showToast('이 브라우저에서는 전체화면을 지원하지 않습니다');
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    }
+    btnFullscreen.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      btnFullscreen.textContent = isFullscreen() ? '⛶' : '⛶';
+      btnFullscreen.setAttribute('aria-pressed', isFullscreen() ? 'true' : 'false');
+    });
+    document.addEventListener('webkitfullscreenchange', () => {
+      btnFullscreen.setAttribute('aria-pressed', isFullscreen() ? 'true' : 'false');
+    });
 
     const book = ePub(BOOK_PATH);
     const rendition = book.renderTo("viewer", {
@@ -296,12 +322,29 @@
         const targetEl = targetId ? contents.document.getElementById(targetId) : null;
 
         if (isFootnoteLink(link, targetEl)) {
+          // 핵심: href를 실제로 제거해야 epub.js 내부 네비게이션 로직이
+          // 이 링크를 "이동 가능한 링크"로 인식하지 않는다.
+          // preventDefault/stopPropagation만으로는 epub.js가 캡처링 단계에서
+          // 먼저 이동을 처리해버려 막을 수 없었던 문제를 여기서 해결한다.
+          const noteText = (targetEl ? (targetEl.innerText || targetEl.textContent) : '')
+            || link.getAttribute('title')
+            || '주석 내용을 찾을 수 없습니다.';
+          link.dataset.noteText = noteText.trim();
+          link.removeAttribute('href');
+          link.style.cursor = 'pointer';
+          link.setAttribute('role', 'button');
+          link.tabIndex = 0;
+
           link.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            let noteText = targetEl ? (targetEl.innerText || targetEl.textContent) : '';
-            if (!noteText) noteText = link.getAttribute('title') || '주석 내용을 찾을 수 없습니다.';
-            showFootnote(noteText.trim());
+            showFootnote(link.dataset.noteText);
+          });
+          link.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              showFootnote(link.dataset.noteText);
+            }
           });
         }
         // 그 외 링크(목차성 내부 이동 등)는 기본 동작(rendition 내 이동)에 맡김
