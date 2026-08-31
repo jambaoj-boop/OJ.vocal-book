@@ -414,17 +414,29 @@
       if (fnModal.style.display === 'block' && !fnModal.contains(e.target)) closeFootnote();
     });
 
+    // 목차(nav) href는 nav 파일 기준 상대경로라 spine에 저장된 실제 경로와
+    // 폴더 구조가 다를 수 있다(예: nav 기준 "ch01.xhtml" vs spine의 "Text/ch01.xhtml").
+    // 파일명만으로 spine 목록에서 실제 경로를 찾아 매칭한다.
+    function resolveToSpineHref(href) {
+      const [pathPart, frag] = href.split('#');
+      const baseName = pathPart.split('/').pop();
+      let items = [];
+      try { items = (book.spine && book.spine.items) || []; } catch (e) { /* ignore */ }
+      const match = items.find(item => item.href === pathPart)
+        || items.find(item => item.href && item.href.split('/').pop() === baseName)
+        || items.find(item => item.href && item.href.endsWith('/' + baseName));
+      if (match) return frag ? `${match.href}#${frag}` : match.href;
+      return null;
+    }
+
     // 목차 이동 (실패 시 폴백 + 사용자 피드백)
     function goToChapter(href) {
-      const candidates = [href];
+      const candidates = [];
+      const spineMatch = resolveToSpineHref(href);
+      if (spineMatch) candidates.push(spineMatch);
+      candidates.push(href);
       const noFragment = href.split('#')[0];
-      if (noFragment !== href) candidates.push(noFragment);
-      try {
-        if (typeof book.canonical === 'function') {
-          const canon = book.canonical(href);
-          if (canon && !candidates.includes(canon)) candidates.push(canon);
-        }
-      } catch (e) { /* ignore */ }
+      if (!candidates.includes(noFragment)) candidates.push(noFragment);
       try {
         const decoded = decodeURIComponent(href);
         if (!candidates.includes(decoded)) candidates.push(decoded);
