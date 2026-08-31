@@ -4,32 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>나는 왜 발성을 배울수록 노래가 어려워지는가</title>
-  
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
 
   <style>
-    * { 
+    * {
       box-sizing: border-box; margin: 0; padding: 0;
       -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; background: #f4f4f5; }
-    
-    header { height: 50px; background: #1e293b; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
-    header h1 { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    header button { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+    body, html {
+      width: 100%; height: 100%; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg, #f4f4f5);
+      touch-action: pan-y;
+    }
 
-    #viewer-container { position: absolute; top: 50px; bottom: 50px; left: 0; right: 0; background: #fff; overflow: auto; }
+    /* 테마 변수 (day / night / sepia) */
+    body.theme-day   { --bg:#f4f4f5; --panel:#ffffff; --text:#334155; --header:#1e293b; --accent:#0284c7; --border:#e2e8f0; }
+    body.theme-night { --bg:#111827; --panel:#1f2937; --text:#e5e7eb; --header:#0b1220; --accent:#38bdf8; --border:#374151; }
+    body.theme-sepia  { --bg:#f1e7d0; --panel:#f8f1e0; --text:#4a3f2d; --header:#5b4636; --accent:#a1662f; --border:#d9c8a5; }
+
+    header { height: 50px; background: var(--header); color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+    header h1 { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; }
+    .header-controls { display: flex; align-items: center; gap: 6px; }
+    .header-btn { background: rgba(255,255,255,0.12); color: #fff; border: none; padding: 6px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .header-btn:active { background: rgba(255,255,255,0.25); }
+    .header-btn[aria-pressed="true"] { outline: 2px solid var(--accent); }
+
+    #viewer-container { position: absolute; top: 50px; bottom: 66px; left: 0; right: 0; background: var(--panel); }
     #viewer { width: 100%; height: 100%; }
 
-    footer { height: 50px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; }
-    .nav-btn { background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
-    
+    /* 로딩 오버레이 */
+    #loading-overlay { position: absolute; inset: 0; top:50px; bottom:66px; display:flex; align-items:center; justify-content:center; background: var(--panel); z-index: 90; }
+    #loading-overlay .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer { height: 66px; background: var(--panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; padding: 6px 16px 10px; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; }
+    .footer-progress { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+    #progress-track { flex:1; height:4px; background: var(--border); border-radius:2px; position:relative; cursor:pointer; }
+    #progress-fill { position:absolute; left:0; top:0; bottom:0; width:0%; background: var(--accent); border-radius:2px; }
+    #progress-label { font-size:11px; color: var(--text); white-space:nowrap; min-width:64px; text-align:right; }
+    .footer-nav { display:flex; align-items:center; justify-content:space-between; }
+    .nav-btn { background: var(--accent); color: white; border: none; padding: 7px 16px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .nav-btn:disabled { opacity: 0.4; }
+
+    /* 목차 모달 */
     #toc-modal { display: none; position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; }
-    #toc-content { width: 80%; max-width: 320px; height: 100%; background: white; padding: 20px; overflow-y: auto; }
+    #toc-content { width: 80%; max-width: 320px; height: 100%; background: var(--panel); padding: 20px; overflow-y: auto; }
     #toc-list { list-style: none; }
     #toc-list li { margin-bottom: 12px; }
-    #toc-list a { color: #334155; text-decoration: none; font-size: 15px; display: block; }
+    #toc-list a { color: var(--text); text-decoration: none; font-size: 15px; display: block; padding: 4px 0; }
+    #toc-list a.current { color: var(--accent); font-weight: bold; }
+
+    /* 리디 스타일 주석 팝업 모달 */
+    #footnote-modal { display: none; position: fixed; bottom: 76px; left: 5%; right: 5%; max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.25); border-radius: 10px; padding: 16px; z-index: 300; }
+    #footnote-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    #footnote-title { font-size: 13px; font-weight: bold; color: var(--accent); }
+    #footnote-close { background: none; border: none; font-size: 18px; color: #64748b; cursor: pointer; }
+    #footnote-body { font-size: 14px; color: var(--text); line-height: 1.6; max-height: 150px; overflow-y: auto; -webkit-user-select: text; user-select: text; }
+
+    #toast { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(15,23,42,0.9); color:#fff; padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity:0; pointer-events:none; transition: opacity .25s ease, transform .25s ease; z-index: 400; }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 
   <script>
@@ -39,56 +76,238 @@
     }
   </script>
 </head>
-<body oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
+<body class="theme-day" oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
 
   <header>
-    <button onclick="window.location.href='../index.html'">←</button>
+    <button class="header-btn" onclick="window.location.href='../index.html'" aria-label="목록으로">←</button>
     <h1>나는 왜 발성을 배울수록 노래가 어려워지는가</h1>
-    <button id="btn-toc">☰</button>
+    <div class="header-controls">
+      <button class="header-btn" id="btn-theme" aria-label="테마 전환">☀︎</button>
+      <button class="header-btn" id="btn-font-down" aria-label="글자 작게">가-</button>
+      <button class="header-btn" id="btn-font-up" aria-label="글자 크게">가+</button>
+      <button class="header-btn" id="btn-toc" aria-label="목차 열기">☰</button>
+    </div>
   </header>
 
   <div id="viewer-container">
     <div id="viewer"></div>
+    <div id="loading-overlay"><div class="spinner"></div></div>
   </div>
 
   <footer>
-    <button id="prev" class="nav-btn">◀ 이전</button>
-    <button id="next" class="nav-btn">다음 ▶</button>
+    <div class="footer-progress">
+      <div id="progress-track" role="slider" aria-label="읽기 진행률" tabindex="0">
+        <div id="progress-fill"></div>
+      </div>
+      <span id="progress-label">0%</span>
+    </div>
+    <div class="footer-nav">
+      <button id="prev" class="nav-btn">◀ 이전</button>
+      <span id="chapter-label" style="font-size:12px; color: var(--text);"></span>
+      <button id="next" class="nav-btn">다음 ▶</button>
+    </div>
   </footer>
 
   <div id="toc-modal">
     <div id="toc-content">
-      <h2 style="font-size:16px; margin-bottom:15px; border-bottom:2px solid #0284c7; padding-bottom:8px;">목차</h2>
+      <h2 style="font-size:16px; margin-bottom:15px; border-bottom:2px solid var(--accent); padding-bottom:8px; color: var(--text);">목차</h2>
       <ul id="toc-list"></ul>
     </div>
   </div>
 
+  <div id="footnote-modal">
+    <div id="footnote-header">
+      <span id="footnote-title">주석</span>
+      <button id="footnote-close" aria-label="닫기">&times;</button>
+    </div>
+    <div id="footnote-body"></div>
+  </div>
+
+  <div id="toast"></div>
+
   <script>
     const BOOK_PATH = '../epub/OJ.vocal-book.epub';
-    
+    const STORAGE_KEY = 'reader_state_v1'; // { fontSize, theme, cfi }
+
+    let currentFontSize = 100;
+    let currentTheme = 'day';
+    let tocFlat = []; // {label, href}
+
+    // 저장된 상태 복원
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { saved = {}; }
+    if (saved.fontSize) currentFontSize = saved.fontSize;
+    if (saved.theme) currentTheme = saved.theme;
+
+    function persistState(partial) {
+      const next = Object.assign({}, saved, partial);
+      saved = next;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (e) { /* 저장 실패 시 무시 */ }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => t.classList.remove('show'), 1500);
+    }
+
+    // 테마 적용
+    const THEME_ICON = { day: '☀︎', night: '☾', sepia: '◐' };
+    const THEME_ORDER = ['day', 'night', 'sepia'];
+    function applyTheme(name) {
+      currentTheme = name;
+      document.body.className = `theme-${name}`;
+      document.getElementById('btn-theme').textContent = THEME_ICON[name];
+      persistState({ theme: name });
+      // 이미 렌더된 iframe 내부에도 배경/글자색 반영
+      if (window.rendition) {
+        const vars = getComputedStyle(document.body);
+        rendition.themes.override('color', vars.getPropertyValue('--text').trim());
+        rendition.themes.override('background', vars.getPropertyValue('--panel').trim());
+      }
+    }
+    document.getElementById('btn-theme').addEventListener('click', () => {
+      const idx = (THEME_ORDER.indexOf(currentTheme) + 1) % THEME_ORDER.length;
+      applyTheme(THEME_ORDER[idx]);
+    });
+    applyTheme(currentTheme);
+
     const book = ePub(BOOK_PATH);
     const rendition = book.renderTo("viewer", {
-      width: "100%", height: "100%", spread: "none", flow: "paginated"
+      width: "100%",
+      height: "100%",
+      spread: "none",
+      flow: "paginated"
     });
+    window.rendition = rendition;
 
-    rendition.display();
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    // 시작 위치: 저장된 CFI가 있으면 거기서, 없으면 처음부터
+    rendition.display(saved.cfi || undefined).then(() => {
+      loadingOverlay.style.display = 'none';
+      rendition.themes.fontSize(`${currentFontSize}%`);
+      applyTheme(currentTheme); // 렌더 후 색상 재적용
+    }).catch(() => {
+      loadingOverlay.innerHTML = '<div style="font-size:13px; color:#94a3b8; text-align:center; padding:20px;">책을 불러오지 못했습니다.<br>인터넷 연결을 확인하고 새로고침 해주세요.</div>';
+    });
 
     document.getElementById('prev').addEventListener('click', () => rendition.prev());
     document.getElementById('next').addEventListener('click', () => rendition.next());
 
+    // 키보드 네비게이션 (PC)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') rendition.prev();
+      if (e.key === 'ArrowRight') rendition.next();
+      if (e.key === 'Escape') { closeFootnote(); tocModal.style.display = 'none'; }
+    });
+
+    // 글자 크기 조절
+    document.getElementById('btn-font-up').addEventListener('click', () => {
+      if (currentFontSize < 180) {
+        currentFontSize += 10;
+        rendition.themes.fontSize(`${currentFontSize}%`);
+        persistState({ fontSize: currentFontSize });
+        showToast(`글자 크기 ${currentFontSize}%`);
+      }
+    });
+    document.getElementById('btn-font-down').addEventListener('click', () => {
+      if (currentFontSize > 70) {
+        currentFontSize -= 10;
+        rendition.themes.fontSize(`${currentFontSize}%`);
+        persistState({ fontSize: currentFontSize });
+        showToast(`글자 크기 ${currentFontSize}%`);
+      }
+    });
+
+    // 진행률 표시 및 현재 위치 저장
+    let bookLocations;
+    book.ready.then(() => book.locations.generate(1000)).then((locs) => {
+      bookLocations = locs;
+    });
+
+    rendition.on('relocated', (location) => {
+      persistState({ cfi: location.start.cfi });
+      if (bookLocations) {
+        const pct = book.locations.percentageFromCfi(location.start.cfi);
+        document.getElementById('progress-fill').style.width = `${Math.round(pct * 100)}%`;
+        document.getElementById('progress-label').textContent = `${Math.round(pct * 100)}%`;
+      }
+      document.getElementById('prev').disabled = location.atStart;
+      document.getElementById('next').disabled = location.atEnd;
+
+      // 목차에서 현재 챕터 라벨/하이라이트
+      const href = location.start.href;
+      const match = tocFlat.find(c => href && href.includes(c.href.split('#')[0]));
+      document.getElementById('chapter-label').textContent = match ? match.label.trim() : '';
+      document.querySelectorAll('#toc-list a').forEach(a => {
+        a.classList.toggle('current', match && a.dataset.href === match.href);
+      });
+    });
+
+    // 진행바 클릭으로 이동
+    document.getElementById('progress-track').addEventListener('click', (e) => {
+      if (!bookLocations) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      const cfi = book.locations.cfiFromPercentage(Math.min(Math.max(ratio, 0), 1));
+      rendition.display(cfi);
+    });
+
+    // 콘텐츠별 후처리: 스타일, 각주 인터셉트, 스와이프
     rendition.hooks.content.register((contents) => {
       contents.addStylesheetRules({
         "body": {
           "padding": "12px !important",
           "-webkit-user-select": "none !important",
           "-moz-user-select": "none !important",
-          "user-select": "none !important"
+          "user-select": "none !important",
+          "line-height": "1.75 !important"
         },
         "img": { "max-width": "100%", "height": "auto" }
       });
 
       contents.document.addEventListener('contextmenu', e => e.preventDefault());
 
+      // 각주 판별: href의 '#' 유무가 아니라 EPUB3 표준 속성/클래스 우선 확인
+      // 1) epub:type="noteref" 또는 role="doc-noteref" (표준)
+      // 2) class에 note/footnote 포함
+      // 3) 대상 요소(target)의 class/epub:type이 note 계열인 경우
+      // 순수 '#internal-anchor' 형태의 일반 상호참조 링크는 그대로 이동 허용
+      function isFootnoteLink(link, targetEl) {
+        const epubType = link.getAttribute('epub:type') || '';
+        const role = link.getAttribute('role') || '';
+        const cls = link.getAttribute('class') || '';
+        if (/noteref/i.test(epubType) || /doc-noteref/i.test(role) || /note|footnote/i.test(cls)) return true;
+        if (targetEl) {
+          const tEpubType = targetEl.getAttribute('epub:type') || '';
+          const tCls = targetEl.getAttribute('class') || '';
+          if (/note|footnote|endnote/i.test(tEpubType) || /note|footnote|endnote/i.test(tCls)) return true;
+        }
+        return false;
+      }
+
+      contents.document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        const targetId = href.split('#')[1];
+        const targetEl = targetId ? contents.document.getElementById(targetId) : null;
+
+        if (isFootnoteLink(link, targetEl)) {
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            let noteText = targetEl ? (targetEl.innerText || targetEl.textContent) : '';
+            if (!noteText) noteText = link.getAttribute('title') || '주석 내용을 찾을 수 없습니다.';
+            showFootnote(noteText.trim());
+          });
+        }
+        // 그 외 링크(목차성 내부 이동 등)는 기본 동작(rendition 내 이동)에 맡김
+      });
+
+      // 스와이프 제스처 (핀치 줌과 구분되도록 단일 터치만 처리)
       let startX = 0, startY = 0;
       const el = contents.document.documentElement;
       el.addEventListener('touchstart', (e) => {
@@ -103,28 +322,47 @@
           const diffX = e.changedTouches[0].clientX - startX;
           const diffY = e.changedTouches[0].clientY - startY;
           if (Math.abs(diffX) > 50 && Math.abs(diffY) < 30) {
-            if (diffX > 0) rendition.prev();
-            else rendition.next();
+            if (diffX > 0) rendition.prev(); else rendition.next();
           }
         }
       }, { passive: true });
     });
 
+    // 주석 팝업 제어
+    const fnModal = document.getElementById('footnote-modal');
+    const fnBody = document.getElementById('footnote-body');
+    const fnClose = document.getElementById('footnote-close');
+
+    function showFootnote(text) {
+      fnBody.innerText = text;
+      fnModal.style.display = 'block';
+    }
+    function closeFootnote() { fnModal.style.display = 'none'; }
+    fnClose.addEventListener('click', closeFootnote);
+    document.addEventListener('click', (e) => {
+      if (fnModal.style.display === 'block' && !fnModal.contains(e.target)) closeFootnote();
+    });
+
+    // 목차 제어
     book.loaded.navigation.then((toc) => {
       const tocList = document.getElementById('toc-list');
-      toc.forEach((chapter) => {
+      const flatten = (items) => items.forEach(chapter => {
+        tocFlat.push({ label: chapter.label, href: chapter.href });
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.textContent = chapter.label.trim();
         a.href = chapter.href;
+        a.dataset.href = chapter.href;
         a.onclick = (e) => {
           e.preventDefault();
           rendition.display(chapter.href);
-          document.getElementById('toc-modal').style.display = 'none';
+          tocModal.style.display = 'none';
         };
         li.appendChild(a);
         tocList.appendChild(li);
+        if (chapter.subitems && chapter.subitems.length) flatten(chapter.subitems);
       });
+      flatten(toc);
     });
 
     const tocModal = document.getElementById('toc-modal');
