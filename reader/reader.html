@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>나는 왜 발성을 배울수록 노래가 어려워지는가</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+
+  <style>
+    * { 
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+    }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; background: #f4f4f5; }
+    
+    header { height: 50px; background: #1e293b; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+    header h1 { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header button { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+
+    #viewer-container { position: absolute; top: 50px; bottom: 50px; left: 0; right: 0; background: #fff; overflow: auto; }
+    #viewer { width: 100%; height: 100%; }
+
+    footer { height: 50px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; }
+    .nav-btn { background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    
+    #toc-modal { display: none; position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; }
+    #toc-content { width: 80%; max-width: 320px; height: 100%; background: white; padding: 20px; overflow-y: auto; }
+    #toc-list { list-style: none; }
+    #toc-list li { margin-bottom: 12px; }
+    #toc-list a { color: #334155; text-decoration: none; font-size: 15px; display: block; }
+  </style>
+
+  <script>
+    if (sessionStorage.getItem("book_authenticated") !== "true") {
+      alert("올바른 접근이 아닙니다.");
+      window.location.href = "../index.html";
+    }
+  </script>
+</head>
+<body oncontextmenu="return false" ondragstart="return false" onselectstart="return false">
+
+  <header>
+    <button onclick="window.location.href='../index.html'">←</button>
+    <h1>나는 왜 발성을 배울수록 노래가 어려워지는가</h1>
+    <button id="btn-toc">☰</button>
+  </header>
+
+  <div id="viewer-container">
+    <div id="viewer"></div>
+  </div>
+
+  <footer>
+    <button id="prev" class="nav-btn">◀ 이전</button>
+    <button id="next" class="nav-btn">다음 ▶</button>
+  </footer>
+
+  <div id="toc-modal">
+    <div id="toc-content">
+      <h2 style="font-size:16px; margin-bottom:15px; border-bottom:2px solid #0284c7; padding-bottom:8px;">목차</h2>
+      <ul id="toc-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    const BOOK_PATH = '../epub/vocal-book.epub';
+    
+    const book = ePub(BOOK_PATH);
+    const rendition = book.renderTo("viewer", {
+      width: "100%", height: "100%", spread: "none", flow: "paginated"
+    });
+
+    rendition.display();
+
+    document.getElementById('prev').addEventListener('click', () => rendition.prev());
+    document.getElementById('next').addEventListener('click', () => rendition.next());
+
+    rendition.hooks.content.register((contents) => {
+      contents.addStylesheetRules({
+        "body": {
+          "padding": "12px !important",
+          "-webkit-user-select": "none !important",
+          "-moz-user-select": "none !important",
+          "user-select": "none !important"
+        },
+        "img": { "max-width": "100%", "height": "auto" }
+      });
+
+      contents.document.addEventListener('contextmenu', e => e.preventDefault());
+
+      let startX = 0, startY = 0;
+      const el = contents.document.documentElement;
+      el.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      el.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 1) {
+          const diffX = e.changedTouches[0].clientX - startX;
+          const diffY = e.changedTouches[0].clientY - startY;
+          if (Math.abs(diffX) > 50 && Math.abs(diffY) < 30) {
+            if (diffX > 0) rendition.prev();
+            else rendition.next();
+          }
+        }
+      }, { passive: true });
+    });
+
+    book.loaded.navigation.then((toc) => {
+      const tocList = document.getElementById('toc-list');
+      toc.forEach((chapter) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.textContent = chapter.label.trim();
+        a.href = chapter.href;
+        a.onclick = (e) => {
+          e.preventDefault();
+          rendition.display(chapter.href);
+          document.getElementById('toc-modal').style.display = 'none';
+        };
+        li.appendChild(a);
+        tocList.appendChild(li);
+      });
+    });
+
+    const tocModal = document.getElementById('toc-modal');
+    document.getElementById('btn-toc').addEventListener('click', () => tocModal.style.display = 'block');
+    tocModal.addEventListener('click', (e) => { if (e.target === tocModal) tocModal.style.display = 'none'; });
+  </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>수강생 전용 사전 열람</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: #f4f4f5; }
+    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 380px; text-align: center; }
+    h1 { font-size: 18px; margin-bottom: 8px; color: #1e293b; word-break: keep-all; }
+    p { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.4; }
+    input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; margin-bottom: 12px; text-align: center; }
+    button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    .error { color: #ef4444; font-size: 13px; margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>나는 왜 발성을 배울수록<br>노래가 어려워지는가</h1>
+    <p>수강생 전용 사전 열람 페이지입니다.<br>전달받은 비밀번호를 입력하세요.</p>
+    
+    <input type="password" id="pass-input" placeholder="비밀번호 입력">
+    <button onclick="checkAccess()">전자책 열람하기</button>
+    
+    <div id="error-msg" class="error"></div>
+  </div>
+
+  <script>
+    // [설정 1] 만료일 설정 (오늘 기준 6개월 뒤: 2027년 2월 28일)
+    const EXPIRATION_DATE = new Date("2027-02-28T23:59:59"); 
+    
+    // [설정 2] 학생들에게 전달할 비밀번호
+    const ACCESS_CODE = "oj2026"; 
+
+    function checkAccess() {
+      const now = new Date();
+      const errorEl = document.getElementById('error-msg');
+
+      if (now > EXPIRATION_DATE) {
+        errorEl.textContent = "열람 허용 기간(6개월)이 만료되었습니다.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      const input = document.getElementById('pass-input').value;
+      if (input === ACCESS_CODE) {
+        sessionStorage.setItem("book_authenticated", "true");
+        window.location.href = "reader/reader.html";
+      } else {
+        errorEl.textContent = "비밀번호가 올바르지 않습니다.";
+        errorEl.style.display = "block";
+      }
+    }
+  </script>
+</body>
+</html>
