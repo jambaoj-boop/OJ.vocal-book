@@ -292,10 +292,23 @@
           "user-select": "none !important",
           "line-height": "1.75 !important"
         },
-        "img": { "max-width": "100%", "height": "auto" }
+        "img": { "max-width": "100%", "height": "auto" },
+        "table": { "border-collapse": "collapse", "table-layout": "auto" },
+        "td, th": { "word-break": "break-word", "overflow-wrap": "break-word", "white-space": "normal !important" },
+        ".table-scroll-wrap": { "overflow-x": "auto", "-webkit-overflow-scrolling": "touch", "max-width": "100%" }
       });
 
       contents.document.addEventListener('contextmenu', e => e.preventDefault());
+
+      // 표가 글자 크기 확대 시 화면 폭을 넘어가면 칼럼이 잘리는 대신
+      // 표 자체를 가로 스크롤 가능한 컨테이너로 감싼다.
+      contents.document.querySelectorAll('table').forEach(table => {
+        if (table.parentElement && table.parentElement.classList.contains('table-scroll-wrap')) return;
+        const wrapper = contents.document.createElement('div');
+        wrapper.className = 'table-scroll-wrap';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+      });
 
       // 각주 판별: href의 '#' 유무가 아니라 EPUB3 표준 속성/클래스 우선 확인
       // 1) epub:type="noteref" 또는 role="doc-noteref" (표준)
@@ -356,17 +369,19 @@
         // 그 외 링크(목차성 내부 이동 등)는 기본 동작(rendition 내 이동)에 맡김
       });
 
-      // 스와이프 제스처 (핀치 줌과 구분되도록 단일 터치만 처리)
-      let startX = 0, startY = 0;
+      // 스와이프 제스처 (핀치 줌과 구분되도록 단일 터치만 처리, 표 내부 가로 스크롤과는 충돌 방지)
+      let startX = 0, startY = 0, startInTable = false;
       const el = contents.document.documentElement;
       el.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           startX = e.touches[0].clientX;
           startY = e.touches[0].clientY;
+          startInTable = !!(e.target.closest && e.target.closest('.table-scroll-wrap'));
         }
       }, { passive: true });
 
       el.addEventListener('touchend', (e) => {
+        if (startInTable) return; // 표 안에서 시작한 터치는 페이지 넘김으로 처리하지 않음
         if (e.changedTouches.length === 1) {
           const diffX = e.changedTouches[0].clientX - startX;
           const diffY = e.changedTouches[0].clientY - startY;
@@ -392,6 +407,22 @@
       if (fnModal.style.display === 'block' && !fnModal.contains(e.target)) closeFootnote();
     });
 
+    // 목차 이동 (실패 시 폴백 + 사용자 피드백)
+    function goToChapter(href) {
+      const attempt = (target) => rendition.display(target);
+      attempt(href).catch(() => {
+        // 일부 epub.js 버전/북 구조에서 canonical 경로 보정이 필요한 경우의 폴백
+        let canonical = href;
+        try { if (typeof book.canonical === 'function') canonical = book.canonical(href); } catch (e) { /* ignore */ }
+        if (canonical !== href) {
+          attempt(canonical).catch(() => showToast('해당 챕터로 이동하지 못했습니다'));
+        } else {
+          showToast('해당 챕터로 이동하지 못했습니다');
+        }
+      });
+      tocModal.style.display = 'none';
+    }
+
     // 목차 제어
     book.loaded.navigation.then((toc) => {
       const tocList = document.getElementById('toc-list');
@@ -404,15 +435,14 @@
         a.dataset.href = chapter.href;
         a.onclick = (e) => {
           e.preventDefault();
-          rendition.display(chapter.href);
-          tocModal.style.display = 'none';
+          goToChapter(chapter.href);
         };
         li.appendChild(a);
         tocList.appendChild(li);
         if (chapter.subitems && chapter.subitems.length) flatten(chapter.subitems);
       });
       flatten(toc);
-    });
+    }).catch(() => showToast('목차를 불러오지 못했습니다'));
 
     const tocModal = document.getElementById('toc-modal');
     document.getElementById('btn-toc').addEventListener('click', () => tocModal.style.display = 'block');
