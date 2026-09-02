@@ -507,15 +507,20 @@
       document.getElementById('tts-close').addEventListener('click', () => { ttsPanel.style.display = 'none'; });
 
       function getCurrentPageText() {
-        // 현재 화면에 렌더링된 컨텐츠(들)의 텍스트를 페이지 순서대로 수집
-        let text = '';
+        // 현재 렌더링된 iframe들의 body 텍스트를 순서대로 수집
+        // paginated 모드에서는 보통 1~2개 페이지(iframe)가 동시 렌더링된다
+        let texts = [];
         try {
           const contentsList = rendition.getContents();
           contentsList.forEach(c => {
-            if (c.document && c.document.body) text += ' ' + c.document.body.innerText;
+            if (c && c.document && c.document.body) {
+              const pageText = c.document.body.innerText.replace(/\s+/g, ' ').trim();
+              if (pageText) texts.push(pageText);
+            }
           });
         } catch (e) { /* ignore */ }
-        return text.replace(/\s+/g, ' ').trim();
+        // 첫 번째 렌더링된 페이지부터 읽기 시작 (전체 챕터가 아닌 현재 보이는 페이지만)
+        return texts.length ? texts[0] : '';
       }
 
       function splitIntoSentences(text) {
