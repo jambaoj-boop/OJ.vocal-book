@@ -507,20 +507,24 @@
       document.getElementById('tts-close').addEventListener('click', () => { ttsPanel.style.display = 'none'; });
 
       function getCurrentPageText() {
-        // 현재 렌더링된 iframe들의 body 텍스트를 순서대로 수집
-        // paginated 모드에서는 보통 1~2개 페이지(iframe)가 동시 렌더링된다
-        let texts = [];
+        // 현재 렌더링된 페이지의 보이는 텍스트만 추출
+        // paginated 모드에서 여러 페이지가 동시 렌더링될 수 있으므로
+        // 첫 번째 iframe(현재 보이는 페이지)의 body 텍스트만 사용한다
+        let text = '';
         try {
           const contentsList = rendition.getContents();
-          contentsList.forEach(c => {
-            if (c && c.document && c.document.body) {
-              const pageText = c.document.body.innerText.replace(/\s+/g, ' ').trim();
-              if (pageText) texts.push(pageText);
+          if (contentsList && contentsList.length > 0) {
+            // 첫 번째 콘텐츠(현재 보이는 페이지)의 body 텍스트만 추출
+            const firstContent = contentsList[0];
+            if (firstContent && firstContent.document && firstContent.document.body) {
+              text = firstContent.document.body.innerText;
             }
-          });
+          }
         } catch (e) { /* ignore */ }
-        // 첫 번째 렌더링된 페이지부터 읽기 시작 (전체 챕터가 아닌 현재 보이는 페이지만)
-        return texts.length ? texts[0] : '';
+        
+        // 공백 정리 및 반환
+        text = text.replace(/\s+/g, ' ').trim();
+        return text;
       }
 
       function splitIntoSentences(text) {
